@@ -1,0 +1,42 @@
+name: Daily Commit Bot
+
+on:
+  schedule:
+    - cron: '0 9 * * *'       # Runs every day at 9:00 AM UTC
+  workflow_dispatch:          # Allows manual triggering from the Actions tab
+
+jobs:
+  commit:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write         # Grant write access to push commits back to the repo
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v3
+        with:
+          persist-credentials: true
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v3
+        with:
+          node-version: '18'
+
+      - name: Run Auto Commit Script
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GITHUB_REPOSITORY: ${{ github.repository }}
+          TELEGRAM_TOKEN: ${{ secrets.TELEGRAM_TOKEN }}
+          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+        run: node scripts/auto_commit.js
+
+      # Weekly Keep-Alive: Commits to keep_alive.txt every Sunday to prevent GitHub from pausing the workflow.
+      - name: Weekly Keep-Alive Commit
+        if: github.event_name == 'schedule' && github.event.schedule == '0 9 * * 0'
+        run: |
+          echo "Heartbeat: $(date)" > keep_alive.txt
+          git config --local user.email "github-actions[bot]@users.noreply.github.com"
+          git config --local user.name "github-actions[bot]"
+          git add keep_alive.txt
+          git commit -m "chore: weekly keep-alive heartbeat" || exit 0
+          git push
