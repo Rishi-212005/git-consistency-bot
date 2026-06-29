@@ -2257,6 +2257,7 @@ run();`;
       }
 
       btnAutoSetupAction.disabled = true;
+      btnAutoSetupAction.innerHTML = `<span style="width: 14px; height: 14px; border: 2px solid #ffffff; border-top: 2px solid transparent; border-radius: 50%; animation: spin 1s linear infinite; display: inline-block; vertical-align: middle; margin-right: 0.4rem;"></span> Configuring Cloud...`;
       log(`Starting automated Cloud Setup for ${selectedRepo}...`);
 
       try {
@@ -2318,6 +2319,7 @@ run();`;
         log(`Cloud Setup failed: ${err.message}`, "error");
       } finally {
         btnAutoSetupAction.disabled = false;
+        btnAutoSetupAction.innerHTML = `🚀 One-Click Cloud Setup (Auto-Configure)`;
       }
     });
 
