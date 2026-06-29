@@ -1150,7 +1150,7 @@
             <p style="margin-bottom: 0.5rem;">Download and place these files manually in your repository:</p>
             <div class="download-buttons">
               <button class="btn btn-secondary" id="btnDownloadWorkflow" style="flex: 1; font-size: 0.75rem; min-height: auto; padding: 0.45rem;">daily-commit.yml</button>
-              <button class="btn btn-secondary" id="btnDownloadScript" style="flex: 1; font-size: 0.75rem; min-height: auto; padding: 0.45rem;">auto_commit.js</button>
+              <button class="btn btn-secondary" id="btnDownloadScript" style="flex: 1; font-size: 0.75rem; min-height: auto; padding: 0.45rem;">auto_commit.cjs</button>
             </div>
           </div>
         </div>
@@ -2146,7 +2146,7 @@ jobs:
           GITHUB_REPOSITORY: \$\{{ github.repository \}}
           TELEGRAM_TOKEN: \$\{{ secrets.TELEGRAM_TOKEN \}}
           TELEGRAM_CHAT_ID: \$\{{ secrets.TELEGRAM_CHAT_ID \}}
-        run: node scripts/auto_commit.js
+        run: node scripts/auto_commit.cjs
 
       - name: Weekly Keep-Alive Commit
         if: github.event_name == 'schedule' && github.event.schedule == '${keepAliveCron}'
@@ -2401,9 +2401,9 @@ run();`;
         await fetchGitHub(`/repos/${selectedRepo}/contents/${workflowPath}`, 'PUT', wfBody);
         log("Successfully created/updated daily-commit.yml!", "success");
 
-        // 2. Create or Update scripts/auto_commit.js
+        // 2. Create or Update scripts/auto_commit.cjs
         log("Configuring automation script...");
-        const scriptPath = 'scripts/auto_commit.js';
+        const scriptPath = 'scripts/auto_commit.cjs';
         const scriptContent = getScriptContent();
 
         // Check if script exists to get its SHA
@@ -2463,10 +2463,10 @@ run();`;
       const url = URL.createObjectURL(blob);
       const a = document.createElement('a');
       a.href = url;
-      a.download = 'auto_commit.js';
+      a.download = 'auto_commit.cjs';
       a.click();
       URL.revokeObjectURL(url);
-      log("Downloaded auto_commit.js", "success");
+      log("Downloaded auto_commit.cjs", "success");
     });
 
     // --- Initial Load ---
