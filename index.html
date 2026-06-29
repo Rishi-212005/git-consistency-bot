@@ -887,6 +887,9 @@
         <div class="user-profile" id="userProfile">
           <img src="" alt="Avatar" class="avatar" id="userAvatar">
           <span class="username" id="userName">username</span>
+          <button class="btn-sync" id="btnSync" title="Sync with GitHub" style="background: none; border: none; color: var(--text-secondary); cursor: pointer; display: flex; align-items: center; justify-content: center; padding: 4px; margin-left: 6px; border-radius: 50%; transition: all 0.2s; outline: none;" onmouseover="this.style.background='rgba(0,0,0,0.05)';" onmouseout="this.style.background='none';">
+            <svg id="syncIcon" style="width: 14px; height: 14px; color: var(--text-secondary); transition: transform 0.3s ease;" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M4 4v5h.582m15.356 2A8.001 8.001 0 1121.21 8H18"></path></svg>
+          </button>
         </div>
       </div>
       
@@ -1700,6 +1703,48 @@
         return;
       }
       verifyToken(inputVal);
+    });
+
+    // --- Sync Button Listener ---
+    const btnSync = document.getElementById('btnSync');
+    const syncIcon = document.getElementById('syncIcon');
+
+    btnSync.addEventListener('click', async () => {
+      if (!githubToken) {
+        log("Please connect your GitHub account first.", "warning");
+        return;
+      }
+      
+      btnSync.disabled = true;
+      syncIcon.style.animation = 'spin 1s linear infinite';
+      log("Syncing all data with GitHub...");
+
+      try {
+        // 1. Re-fetch user profile and global contribution calendar
+        const userRes = await fetchGitHub('/user');
+        userData = userRes.data;
+        userName.textContent = userData.login;
+        if (userData.avatar_url) {
+          userAvatar.src = userData.avatar_url;
+        }
+
+        await fetchGlobalCommits(userData.login);
+
+        // 2. Re-sync active repository
+        const activeRepo = repoSelect.value || (await getSetting('auto_repo'));
+        if (activeRepo) {
+          await syncStreakFromRepo(activeRepo);
+        } else {
+          renderCalendar();
+        }
+
+        log("Sync complete! Data is up to date.", "success");
+      } catch (err) {
+        log(`Sync failed: ${err.message}`, "error");
+      } finally {
+        btnSync.disabled = false;
+        syncIcon.style.animation = 'none';
+      }
     });
 
     repoSelect.addEventListener('change', async () => {
