@@ -9,8 +9,6 @@ const path = require('path');
 // Read environment variables
 const token = process.env.GITHUB_TOKEN;
 const repo = process.env.GITHUB_REPOSITORY; // format: "owner/repo"
-const telegramToken = process.env.TELEGRAM_TOKEN;
-const telegramChatId = process.env.TELEGRAM_CHAT_ID;
 
 if (!token || !repo) {
   console.error("Error: GITHUB_TOKEN and GITHUB_REPOSITORY environment variables are required.");
@@ -46,28 +44,6 @@ async function githubApi(endpoint, options = {}) {
     status: response.status,
     data: response.status === 204 ? null : await response.json()
   };
-}
-
-// Helper to send Telegram messages
-async function sendTelegramAlert(message) {
-  if (!telegramToken || !telegramChatId) return;
-  try {
-    const url = `https://api.telegram.org/bot${telegramToken}/sendMessage`;
-    const response = await fetch(url, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        chat_id: telegramChatId,
-        text: message,
-        parse_mode: 'HTML'
-      })
-    });
-    if (response.ok) {
-      console.log("Telegram alert sent.");
-    }
-  } catch (err) {
-    console.error("Telegram alert failed:", err.message);
-  }
 }
 
 // Main commit execution function
@@ -185,13 +161,8 @@ async function run() {
     });
     console.log("Streak backup updated successfully!");
 
-    // Send success Telegram notification if configured
-    await sendTelegramAlert(`🤖 <b>GitHub Commit Bot</b>\n\n✅ <b>Daily Commit Successful!</b>\n\nCompleted daily commits to <b>${repo}</b>.\nStreak: <b>${streakData.streak} days</b> 🔥`);
-
   } catch (error) {
     console.error("Automation Error:", error.message);
-    // Send Telegram alert if configured
-    await sendTelegramAlert(`⚠️ <b>GitHub Commit Bot Alert</b>\n\n❌ Daily Commit Automation failed!\n\n<b>Error:</b> ${error.message}\n\nCheck your GitHub Action logs for details.`);
     process.exit(1);
   }
 }
