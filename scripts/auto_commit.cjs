@@ -46,10 +46,87 @@ async function githubApi(endpoint, options = {}) {
   };
 }
 
+// Helper to check if the user has already made commits today
+async function checkAlreadyCommitted(username) {
+  console.log(`Checking if ${username} has already made commits today...`);
+  const query = {
+    query: `
+      query {
+        user(login: "${username}") {
+          contributionsCollection {
+            contributionCalendar {
+              weeks {
+                contributionDays {
+                  contributionCount
+                  date
+                }
+              }
+            }
+          }
+        }
+      }
+    `
+  };
+
+  try {
+    const response = await fetch('https://api.github.com/graphql', {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${token}`,
+        'Content-Type': 'application/json',
+        'Accept': 'application/json',
+        'User-Agent': 'github-commit-bot'
+      },
+      body: JSON.stringify(query)
+    });
+
+    if (!response.ok) {
+      console.warn("GraphQL check failed, proceeding with commit.");
+      return false;
+    }
+
+    const res = await response.json();
+    if (res.errors) {
+      console.warn("GraphQL check returned errors, proceeding with commit:", res.errors[0].message);
+      return false;
+    }
+
+    const calendar = res.data.user.contributionsCollection.contributionCalendar;
+    const todayStr = new Date().toISOString().split('T')[0];
+    
+    let todayCount = 0;
+    calendar.weeks.forEach(week => {
+      week.contributionDays.forEach(day => {
+        if (day.date === todayStr) {
+          todayCount = day.contributionCount;
+        }
+      });
+    });
+
+    if (todayCount > 0) {
+      console.log(`User ${username} already has ${todayCount} commit(s) today. Skipping automated commit to keep history clean.`);
+      return true;
+    }
+    
+    console.log(`No commits found for ${username} today. Proceeding with automated commit.`);
+    return false;
+  } catch (err) {
+    console.warn("Error checking commits, proceeding with commit:", err.message);
+    return false;
+  }
+}
+
 // Main commit execution function
 async function run() {
   try {
     console.log(`Starting daily commit process for ${repo}...\n`);
+    
+    // Check if already committed today
+    const alreadyCommitted = await checkAlreadyCommitted(owner);
+    if (alreadyCommitted) {
+      process.exit(0);
+    }
+
     const today = new Date();
     const dateStr = today.toISOString().split('T')[0];
     const timeStr = today.toTimeString().split(' ')[0];
