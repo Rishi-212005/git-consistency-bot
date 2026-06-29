@@ -1327,6 +1327,23 @@
           </p>
         </div>
 
+        <div class="guide-card">
+          <h2>Smart Skip Logic (Streak & History Protection)</h2>
+          <div class="highlight-box" style="background: #e0f2fe; border-left-color: #0284c7; color: #0369a1; margin-bottom: 0.75rem; padding: 0.5rem 0.75rem; font-size: 0.75rem; border-radius: 6px; font-weight: 600;">
+            <strong>⚡ AUTOMATION ONLY RUNS IF YOU HAVE 0 COMMITS TODAY!</strong>
+          </div>
+          <p style="line-height: 1.45;">
+            To keep your GitHub profile looking organic and prevent unnecessary "junk" commits, the bot includes an intelligent check-and-skip system:
+            <br><br>
+            Every day, before triggering the scheduled commit, the script queries the <strong>GitHub GraphQL API</strong> for your profile. 
+            <br><br>
+            * If it detects that you have <strong>already made 1 or more commits today</strong> (in any public, private, or organization repository), the bot will <strong>skip running</strong> and exit safely.
+            * It will only make a commit if your contribution count for the day is <strong>exactly 0</strong>.
+            <br><br>
+            This ensures your contribution calendar remains clean, natural, and never has redundant double commits on days you are actively coding yourself!
+          </p>
+        </div>
+
       </div>
 
     </div>
