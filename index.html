@@ -1475,19 +1475,20 @@
       // Filter logs for this date
       let dayLogs = appCommitLogs.filter(log => log.date === date);
 
-      // Smart Fallback: If no detailed logs exist, but the date is in our commit history,
-      // show them as recorded commits from our streak.json/GitHub history.
+      // Smart Fallback: If we have fewer detailed logs than the actual commit history count,
+      // fill in the difference with "Recorded" commits from GitHub.
       const historyToUse = activeFilter === 'all' ? allCommitsHistory : commitHistory;
       const countInHistory = historyToUse.filter(d => d === date).length;
 
-      if (dayLogs.length === 0 && countInHistory > 0) {
-        for (let i = 0; i < countInHistory; i++) {
+      if (countInHistory > dayLogs.length) {
+        const difference = countInHistory - dayLogs.length;
+        for (let i = 0; i < difference; i++) {
           dayLogs.push({
             date: date,
             time: 'Recorded',
             repo: activeFilter === 'all' ? 'GitHub Contributions' : (autoRepo.value || repoSelect.value || 'GitHub Repo'),
             type: activeFilter === 'all' ? 'GitHub Contribution' : 'App Commit',
-            message: 'Commit recorded in history backup'
+            message: 'Commit recorded in GitHub history'
           });
         }
       }
