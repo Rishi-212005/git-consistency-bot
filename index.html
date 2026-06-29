@@ -2380,6 +2380,19 @@ run();`;
         const utcMinutes = dateObj.getUTCMinutes();
         const cronExpression = `${utcMinutes} ${utcHours} * * *`;
 
+        // 0. Automatically set Repository Workflow Permissions to "write"
+        log("Configuring repository workflow permissions to Read/Write...");
+        try {
+          await fetchGitHub(`/repos/${selectedRepo}/actions/permissions/workflow`, 'PUT', {
+            default_workflow_permissions: 'write',
+            can_approve_pull_request_reviews: true
+          });
+          log("Successfully configured workflow permissions to Read/Write!", "success");
+        } catch (permErr) {
+          console.warn("Could not set workflow permissions automatically:", permErr.message);
+          log("Note: Could not set workflow permissions automatically. If the workflow fails, please enable 'Read and write permissions' manually in your repository Settings.", "warning");
+        }
+
         // 1. Create or Update .github/workflows/daily-commit.yml
         log(`Configuring GitHub Actions workflow to run at ${preferredTimeVal} local time (${utcHours}:${utcMinutes.toString().padStart(2, '0')} UTC)...`);
         const workflowPath = '.github/workflows/daily-commit.yml';
