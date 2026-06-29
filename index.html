@@ -2002,7 +2002,11 @@
       } catch (err) {
         log(`Error: ${err.message}`, "error");
       } finally {
-        btnTriggerCommit.disabl    // --- Helper to generate workflow and script contents ---
+        btnTriggerCommit.disabled = false;
+      }
+    });
+
+    // --- Helper to generate workflow and script contents ---
     function getWorkflowContent(cronExpression, preferredTimeVal) {
       const keepAliveCron = cronExpression.replace(/\s\*\s\*/, ' * 0'); // Run on Sunday
       return `name: Daily Commit Bot
