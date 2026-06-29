@@ -811,6 +811,13 @@
       }
     }
 
+    .welcome-banner {
+      display: none;
+    }
+    body.tab-dashboard .welcome-banner {
+      display: flex;
+    }
+
     /* Navigation short text helper */
     .nav-text-short {
       display: none;
@@ -920,6 +927,24 @@
 
   <main>
     <div class="app-layout">
+      
+      <!-- Welcome/Guide Banner -->
+      <div class="welcome-banner" id="welcomeBanner" style="grid-column: 1 / -1; background: linear-gradient(135deg, #eff6ff 0%, #dbeafe 100%); border: 1px solid #bfdbfe; border-radius: 12px; padding: 0.85rem 1.25rem; align-items: center; justify-content: space-between; gap: 1rem; box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05), 0 2px 4px -1px rgba(0, 0, 0, 0.03); margin-bottom: 0.25rem;">
+        <div style="display: flex; align-items: center; gap: 0.75rem;">
+          <div style="background: var(--accent-primary); color: #ffffff; width: 36px; height: 36px; border-radius: 50%; display: flex; align-items: center; justify-content: center; flex-shrink: 0; box-shadow: 0 2px 4px rgba(59, 130, 246, 0.2);">
+            <svg style="width: 18px; height: 18px;" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
+          </div>
+          <div>
+            <h4 style="color: #1e3a8a; font-weight: 700; font-size: 0.8rem; margin: 0;">Welcome to GitHub Daily Commit Bot!</h4>
+            <p style="color: #1e40af; font-size: 0.7rem; margin: 0.2rem 0 0; line-height: 1.4;">
+              New to the bot? Please refer to the <a href="#" id="bannerGuideLink" style="color: var(--accent-primary); font-weight: 700; text-decoration: underline;">Guide tab</a> at the top to understand how the bot works, how to set up your token, and best practices.
+            </p>
+          </div>
+        </div>
+        <button id="btnCloseBanner" style="background: none; border: none; color: #1e40af; cursor: pointer; padding: 4px; display: flex; align-items: center; justify-content: center; border-radius: 50%; transition: background 0.2s;" onmouseover="this.style.background='rgba(30, 64, 175, 0.1)';" onmouseout="this.style.background='none';">
+          <svg style="width: 16px; height: 16px;" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path></svg>
+        </button>
+      </div>
       
       <!-- CARD 1: Stats (Spanning full width at the top) -->
       <div class="card-stats stats-container">
@@ -1172,6 +1197,22 @@
           </div>
           <p>
             The bot uses the official <strong>GitHub REST API</strong> to push actual content updates to files in your repository. Because a real commit is created with a unique hash (SHA) on GitHub's servers, they are completely valid and will always be counted in your contributions.
+          </p>
+        </div>
+
+        <div class="guide-card">
+          <h2>Why does the bot make simple file changes instead of actual code?</h2>
+          <p>
+            You might wonder why the bot modifies files like <code>journal.md</code> or adds hidden comments to <code>README.md</code> instead of writing actual JavaScript or Python code.
+          </p>
+          <p>
+            <strong>1. Safety First:</strong> If a bot automatically writes executable code, it could easily introduce syntax errors, break your project's build, or cause your application to crash.
+          </p>
+          <p>
+            <strong>2. Clean Codebase:</strong> Automatic code changes would pollute your repository with "junk" code, making it extremely hard to read and maintain.
+          </p>
+          <p>
+            <strong>3. GitHub Graph Rules:</strong> GitHub's contribution calendar treats all commits equally. A 1-character comment change counts exactly the same as a 1000-line feature. The bot uses simple, safe updates to guarantee your graph turns green without any risk of breaking your project.
           </p>
         </div>
 
@@ -2496,6 +2537,25 @@ run();`;
           log("Note: Streak history is stored in this browser. Verify your token and select a repository to sync your history.", "warning");
           localStorage.setItem('has_loaded_before', 'true');
         }
+
+        // Welcome Banner Listeners
+        const welcomeBanner = document.getElementById('welcomeBanner');
+        const btnCloseBanner = document.getElementById('btnCloseBanner');
+        const bannerGuideLink = document.getElementById('bannerGuideLink');
+
+        if (localStorage.getItem('hide_welcome_banner') === 'true') {
+          welcomeBanner.style.display = 'none';
+        }
+
+        btnCloseBanner.addEventListener('click', () => {
+          welcomeBanner.style.display = 'none';
+          localStorage.setItem('hide_welcome_banner', 'true');
+        });
+
+        bannerGuideLink.addEventListener('click', (e) => {
+          e.preventDefault();
+          setTab('guide');
+        });
 
       } catch (err) {
         console.error("Error initializing app:", err);
