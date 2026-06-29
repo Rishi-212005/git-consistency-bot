@@ -3,7 +3,7 @@
  * Handles background notifications and IndexedDB data access.
  */
 
-const CACHE_NAME = 'github-commit-bot-v8';
+const CACHE_NAME = 'github-commit-bot-v9';
 const ASSETS = [
   '/',
   '/index.html',
