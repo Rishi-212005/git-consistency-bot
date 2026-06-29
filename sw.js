@@ -124,6 +124,19 @@ self.addEventListener('message', async (event) => {
         return;
       }
 
+      // Check if we've reached the preferred time today
+      const autoTime = await getSetting('auto_time') || '09:00';
+      const [prefHours, prefMinutes] = autoTime.split(':').map(Number);
+      
+      const now = new Date();
+      const currentHours = now.getHours();
+      const currentMinutes = now.getMinutes();
+      
+      if (currentHours < prefHours || (currentHours === prefHours && currentMinutes < prefMinutes)) {
+        console.log('[SW] Preferred time not reached yet today.');
+        return;
+      }
+
       console.log('[SW] Background Auto Commit triggered...');
       await performAutoCommit(token, repo, commitType, todayStr);
     } catch (err) {

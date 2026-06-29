@@ -81,6 +81,21 @@ async function run() {
     const timeStr = today.toTimeString().split(' ')[0];
     const timestamp = `${dateStr} ${timeStr}`;
 
+    // Fetch repository owner's profile to attribute the commit correctly (so it counts on their contribution graph)
+    console.log(`Fetching profile for ${owner} to attribute commits...`);
+    let authorName = owner;
+    let authorEmail = `${owner}@users.noreply.github.com`;
+    try {
+      const userProfileRes = await githubApi(`/users/${owner}`);
+      if (userProfileRes.status === 200) {
+        authorName = userProfileRes.data.name || owner;
+        authorEmail = userProfileRes.data.email || `${userProfileRes.data.id}+${owner}@users.noreply.github.com`;
+      }
+    } catch (profileErr) {
+      console.warn("Could not fetch user profile for attribution, using fallback email:", profileErr.message);
+    }
+    console.log(`Attributing commits to: ${authorName} <${authorEmail}>`);
+
     // 1. Commit to journal.md
     const journalPath = 'journal.md';
     const logEntry = `\n## ${timestamp}\nDaily log entry - staying consistent.\n`;
@@ -103,6 +118,14 @@ async function run() {
     const journalBody = {
       message: `daily update ${dateStr}`,
       content: Buffer.from(updatedJournalContent).toString('base64'),
+      author: {
+        name: authorName,
+        email: authorEmail
+      },
+      committer: {
+        name: authorName,
+        email: authorEmail
+      }
     };
     if (journalSha) {
       journalBody.sha = journalSha;
@@ -161,7 +184,15 @@ async function run() {
 
     const streakBody = {
       message: `update streak.json ${dateStr}`,
-      content: Buffer.from(JSON.stringify(streakData, null, 2)).toString('base64')
+      content: Buffer.from(JSON.stringify(streakData, null, 2)).toString('base64'),
+      author: {
+        name: authorName,
+        email: authorEmail
+      },
+      committer: {
+        name: authorName,
+        email: authorEmail
+      }
     };
     if (streakSha) {
       streakBody.sha = streakSha;
