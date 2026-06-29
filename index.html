@@ -2002,33 +2002,14 @@
       } catch (err) {
         log(`Error: ${err.message}`, "error");
       } finally {
-        btnTriggerCommit.disabled = false;
-      }
-    });
-
-    // --- One-Click Cloud Setup (GitHub Actions) ---
-    btnAutoSetupAction.addEventListener('click', async () => {
-      const selectedRepo = autoRepo.value || repoSelect.value;
-      if (!selectedRepo) {
-        log("Please select an Auto-Commit Repository in the settings first.", "warning");
-        return;
-      }
-
-      btnAutoSetupAction.disabled = true;
-      log(`Starting automated Cloud Setup for ${selectedRepo}...`);
-
-      try {
-        const todayStr = new Date().toISOString().split('T')[0];
-
-        // 1. Create or Update .github/workflows/daily-commit.yml
-        log("Configuring GitHub Actions workflow...");
-        const workflowPath = '.github/workflows/daily-commit.yml';
-        
-        const workflowContent = `name: Daily Commit Bot
+        btnTriggerCommit.disabl    // --- Helper to generate workflow and script contents ---
+    function getWorkflowContent(cronExpression, preferredTimeVal) {
+      const keepAliveCron = cronExpression.replace(/\s\*\s\*/, ' * 0'); // Run on Sunday
+      return `name: Daily Commit Bot
 
 on:
   schedule:
-    - cron: '0 9 * * *'       # Runs every day at 9:00 AM UTC
+    - cron: '${cronExpression}'       # Runs every day at ${preferredTimeVal} local time (converted to UTC)
   workflow_dispatch:          # Allows manual triggering from the Actions tab
 
 jobs:
@@ -2057,7 +2038,7 @@ jobs:
         run: node scripts/auto_commit.js
 
       - name: Weekly Keep-Alive Commit
-        if: github.event_name == 'schedule' && github.event.schedule == '0 9 * * 0'
+        if: github.event_name == 'schedule' && github.event.schedule == '${keepAliveCron}'
         run: |
           echo "Heartbeat: \$(date)" > keep_alive.txt
           git config --local user.email "github-actions[bot]@users.noreply.github.com"
@@ -2065,28 +2046,10 @@ jobs:
           git add keep_alive.txt
           git commit -m "chore: weekly keep-alive heartbeat" || exit 0
           git push`;
+    }
 
-        // Check if workflow exists to get its SHA
-        const wfCheck = await fetchGitHub(`/repos/${selectedRepo}/contents/${workflowPath}`);
-        let wfSha = null;
-        if (wfCheck.status === 200) {
-          wfSha = wfCheck.data.sha;
-        }
-
-        const wfBody = {
-          message: `configure daily-commit workflow`,
-          content: btoa(unescape(encodeURIComponent(workflowContent)))
-        };
-        if (wfSha) wfBody.sha = wfSha;
-
-        await fetchGitHub(`/repos/${selectedRepo}/contents/${workflowPath}`, 'PUT', wfBody);
-        log("Successfully created/updated daily-commit.yml!", "success");
-
-        // 2. Create or Update scripts/auto_commit.js
-        log("Configuring automation script...");
-        const scriptPath = 'scripts/auto_commit.js';
-        
-        const scriptContent = `/**
+    function getScriptContent() {
+      return `/**
  * GitHub Daily Commit Automation
  * Zero-dependency Node.js script using built-in fetch (Node 18+)
  */
@@ -2157,11 +2120,26 @@ async function sendTelegramAlert(message) {
 
 async function run() {
   try {
-    console.log(\`Starting daily commit process for \${repo}...\`);
+    console.log(\`Starting daily commit process for \${repo}...\\n\`);
     const today = new Date();
     const dateStr = today.toISOString().split('T')[0];
     const timeStr = today.toTimeString().split(' ')[0];
     const timestamp = \`\${dateStr} \${timeStr}\`;
+
+    // Fetch repository owner's profile to attribute the commit correctly (so it counts on their contribution graph)
+    console.log(\`Fetching profile for \${owner} to attribute commits...\`);
+    let authorName = owner;
+    let authorEmail = \`\${owner}@users.noreply.github.com\`;
+    try {
+      const userProfileRes = await githubApi(\`/users/\${owner}\`);
+      if (userProfileRes.status === 200) {
+        authorName = userProfileRes.data.name || owner;
+        authorEmail = userProfileRes.data.email || \`\${userProfileRes.data.id}+\\n\${owner}@users.noreply.github.com\`;
+      }
+    } catch (profileErr) {
+      console.warn("Could not fetch user profile for attribution, using fallback email:", profileErr.message);
+    }
+    console.log(\`Attributing commits to: \${authorName} <\${authorEmail}>\`);
 
     const journalPath = 'journal.md';
     const logEntry = \`\\n## \${timestamp}\\nDaily log entry - staying consistent.\\n\`;
@@ -2180,6 +2158,14 @@ async function run() {
     const journalBody = {
       message: \`daily update \${dateStr}\`,
       content: Buffer.from(updatedJournalContent).toString('base64'),
+      author: {
+        name: authorName,
+        email: authorEmail
+      },
+      committer: {
+        name: authorName,
+        email: authorEmail
+      }
     };
     if (journalSha) {
       journalBody.sha = journalSha;
@@ -2226,7 +2212,15 @@ async function run() {
 
     const streakBody = {
       message: \`update streak.json \${dateStr}\`,
-      content: Buffer.from(JSON.stringify(streakData, null, 2)).toString('base64')
+      content: Buffer.from(JSON.stringify(streakData, null, 2)).toString('base64'),
+      author: {
+        name: authorName,
+        email: authorEmail
+      },
+      committer: {
+        name: authorName,
+        email: authorEmail
+      }
     };
     if (streakSha) {
       streakBody.sha = streakSha;
@@ -2247,6 +2241,56 @@ async function run() {
 }
 
 run();`;
+    }
+
+    // --- One-Click Cloud Setup (GitHub Actions) ---
+    btnAutoSetupAction.addEventListener('click', async () => {
+      const selectedRepo = autoRepo.value || repoSelect.value;
+      if (!selectedRepo) {
+        log("Please select an Auto-Commit Repository in the settings first.", "warning");
+        return;
+      }
+
+      btnAutoSetupAction.disabled = true;
+      log(`Starting automated Cloud Setup for ${selectedRepo}...`);
+
+      try {
+        const preferredTimeVal = autoTime.value || '09:00';
+        const [localHours, localMinutes] = preferredTimeVal.split(':').map(Number);
+        
+        const dateObj = new Date();
+        dateObj.setHours(localHours);
+        dateObj.setMinutes(localMinutes);
+        
+        const utcHours = dateObj.getUTCHours();
+        const utcMinutes = dateObj.getUTCMinutes();
+        const cronExpression = `${utcMinutes} ${utcHours} * * *`;
+
+        // 1. Create or Update .github/workflows/daily-commit.yml
+        log(`Configuring GitHub Actions workflow to run at ${preferredTimeVal} local time (${utcHours}:${utcMinutes.toString().padStart(2, '0')} UTC)...`);
+        const workflowPath = '.github/workflows/daily-commit.yml';
+        const workflowContent = getWorkflowContent(cronExpression, preferredTimeVal);
+
+        // Check if workflow exists to get its SHA
+        const wfCheck = await fetchGitHub(`/repos/${selectedRepo}/contents/${workflowPath}`);
+        let wfSha = null;
+        if (wfCheck.status === 200) {
+          wfSha = wfCheck.data.sha;
+        }
+
+        const wfBody = {
+          message: `configure daily-commit workflow`,
+          content: btoa(unescape(encodeURIComponent(workflowContent)))
+        };
+        if (wfSha) wfBody.sha = wfSha;
+
+        await fetchGitHub(`/repos/${selectedRepo}/contents/${workflowPath}`, 'PUT', wfBody);
+        log("Successfully created/updated daily-commit.yml!", "success");
+
+        // 2. Create or Update scripts/auto_commit.js
+        log("Configuring automation script...");
+        const scriptPath = 'scripts/auto_commit.js';
+        const scriptContent = getScriptContent();
 
         // Check if script exists to get its SHA
         const scriptCheck = await fetchGitHub(`/repos/${selectedRepo}/contents/${scriptPath}`);
@@ -2274,47 +2318,18 @@ run();`;
 
     // --- File Downloads ---
     btnDownloadWorkflow.addEventListener('click', () => {
-      const workflowContent = `name: Daily Commit Bot
+      const preferredTimeVal = autoTime.value || '09:00';
+      const [localHours, localMinutes] = preferredTimeVal.split(':').map(Number);
+      
+      const dateObj = new Date();
+      dateObj.setHours(localHours);
+      dateObj.setMinutes(localMinutes);
+      
+      const utcHours = dateObj.getUTCHours();
+      const utcMinutes = dateObj.getUTCMinutes();
+      const cronExpression = `${utcMinutes} ${utcHours} * * *`;
 
-on:
-  schedule:
-    - cron: '0 9 * * *'       # Runs every day at 9:00 AM UTC
-  workflow_dispatch:          # Allows manual triggering from the Actions tab
-
-jobs:
-  commit:
-    runs-on: ubuntu-latest
-    permissions:
-      contents: write         # Grant write access to push commits back to the repo
-
-    steps:
-      - name: Checkout repository
-        uses: actions/checkout@v3
-        with:
-          persist-credentials: true
-
-      - name: Set up Node.js
-        uses: actions/setup-node@v3
-        with:
-          node-version: '18'
-
-      - name: Run Auto Commit Script
-        env:
-          GITHUB_TOKEN: \$\{{ secrets.GITHUB_TOKEN \}}
-          GITHUB_REPOSITORY: \$\{{ github.repository \}}
-          TELEGRAM_TOKEN: \$\{{ secrets.TELEGRAM_TOKEN \}}
-          TELEGRAM_CHAT_ID: \$\{{ secrets.TELEGRAM_CHAT_ID \}}
-        run: node scripts/auto_commit.js
-
-      - name: Weekly Keep-Alive Commit
-        if: github.event_name == 'schedule' && github.event.schedule == '0 9 * * 0'
-        run: |
-          echo "Heartbeat: \$(date)" > keep_alive.txt
-          git config --local user.email "github-actions[bot]@users.noreply.github.com"
-          git config --local user.name "github-actions[bot]"
-          git add keep_alive.txt
-          git commit -m "chore: weekly keep-alive heartbeat" || exit 0
-          git push`;
+      const workflowContent = getWorkflowContent(cronExpression, preferredTimeVal);
 
       const blob = new Blob([workflowContent], { type: 'text/yaml' });
       const url = URL.createObjectURL(blob);
@@ -2327,167 +2342,7 @@ jobs:
     });
 
     btnDownloadScript.addEventListener('click', () => {
-      const scriptContent = `/**
- * GitHub Daily Commit Automation
- * Zero-dependency Node.js script using built-in fetch (Node 18+)
- */
-
-const fs = require('fs');
-const path = require('path');
-
-const token = process.env.GITHUB_TOKEN;
-const repo = process.env.GITHUB_REPOSITORY;
-const telegramToken = process.env.TELEGRAM_TOKEN;
-const telegramChatId = process.env.TELEGRAM_CHAT_ID;
-
-if (!token || !repo) {
-  console.error("Error: GITHUB_TOKEN and GITHUB_REPOSITORY environment variables are required.");
-  process.exit(1);
-}
-
-const [owner, repoName] = repo.split('/');
-const headers = {
-  'Authorization': \`Bearer \${token}\`,
-  'Accept': 'application/vnd.github.v3+json',
-  'User-Agent': 'github-commit-bot',
-  'Content-Type': 'application/json'
-};
-
-async function githubApi(endpoint, options = {}) {
-  const url = \`https://api.github.com\${endpoint}\`;
-  const response = await fetch(url, { ...options, headers: { ...headers, ...options.headers } });
-  
-  if (response.status === 403) {
-    const rateRemaining = response.headers.get('X-RateLimit-Remaining');
-    if (rateRemaining === '0') {
-      throw new Error("403_RATELIMIT: GitHub API rate limit exceeded. Try again in 1 hour.");
-    }
-  }
-  
-  if (!response.ok && response.status !== 404) {
-    const errorText = await response.text();
-    throw new Error(\`API Error (\${response.status}): \${errorText}\`);
-  }
-  
-  return {
-    status: response.status,
-    data: response.status === 204 ? null : await response.json()
-  };
-}
-
-async function sendTelegramAlert(message) {
-  if (!telegramToken || !telegramChatId) return;
-  try {
-    const url = \`https://api.telegram.org/bot\${telegramToken}/sendMessage\`;
-    const response = await fetch(url, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        chat_id: telegramChatId,
-        text: \`⚠️ GitHub Commit Bot Alert:\\n\\n\${message}\\n\\nCheck your GitHub Action logs for details.\`,
-        parse_mode: 'HTML'
-      })
-    });
-    if (response.ok) {
-      console.log("Telegram alert sent.");
-    }
-  } catch (err) {
-    console.error("Telegram alert failed:", err.message);
-  }
-}
-
-async function run() {
-  try {
-    console.log(\`Starting daily commit process for \${repo}...\`);
-    const today = new Date();
-    const dateStr = today.toISOString().split('T')[0];
-    const timeStr = today.toTimeString().split(' ')[0];
-    const timestamp = \`\${dateStr} \${timeStr}\`;
-
-    const journalPath = 'journal.md';
-    const logEntry = \`\\n## \${timestamp}\\nDaily log entry - staying consistent.\\n\`;
-    let journalSha = null;
-    let journalContent = '';
-
-    console.log(\`Checking if \${journalPath} exists...\`);
-    const journalRes = await githubApi(\`/repos/\${owner}/\${repoName}/contents/\${journalPath}\`);
-    
-    if (journalRes.status === 200) {
-      journalSha = journalRes.data.sha;
-      journalContent = Buffer.from(journalRes.data.content, 'base64').toString('utf8');
-    }
-
-    const updatedJournalContent = journalContent + logEntry;
-    const journalBody = {
-      message: \`daily update \${dateStr}\`,
-      content: Buffer.from(updatedJournalContent).toString('base64'),
-    };
-    if (journalSha) {
-      journalBody.sha = journalSha;
-    }
-
-    console.log(\`Pushing commit for \${journalPath}...\`);
-    const commitRes = await githubApi(\`/repos/\${owner}/\${repoName}/contents/\${journalPath}\`, {
-      method: 'PUT',
-      body: JSON.stringify(journalBody)
-    });
-    console.log(\`Successfully committed to \${journalPath}!\`);
-
-    // Update streak
-    const streakPath = 'streak.json';
-    let streakSha = null;
-    let streakData = { streak: 0, last_commit_date: '', history: [] };
-
-    console.log(\`Checking if \${streakPath} exists...\`);
-    const streakRes = await githubApi(\`/repos/\${owner}/\${repoName}/contents/\${streakPath}\`);
-    
-    if (streakRes.status === 200) {
-      streakSha = streakRes.data.sha;
-      const rawStreak = Buffer.from(streakRes.data.content, 'base64').toString('utf8');
-      try { streakData = JSON.parse(rawStreak); } catch (e) {}
-    }
-
-    const lastDate = streakData.last_commit_date;
-    if (lastDate !== dateStr) {
-      const yesterday = new Date(today);
-      yesterday.setDate(today.getDate() - 1);
-      const yesterdayStr = yesterday.toISOString().split('T')[0];
-
-      if (lastDate === yesterdayStr) {
-        streakData.streak += 1;
-      } else {
-        streakData.streak = 1;
-      }
-      streakData.last_commit_date = dateStr;
-    }
-
-    if (!streakData.history.includes(dateStr)) {
-      streakData.history.push(dateStr);
-    }
-
-    const streakBody = {
-      message: \`update streak.json \${dateStr}\`,
-      content: Buffer.from(JSON.stringify(streakData, null, 2)).toString('base64')
-    };
-    if (streakSha) {
-      streakBody.sha = streakSha;
-    }
-
-    console.log(\`Updating \${streakPath} backup...\`);
-    await githubApi(\`/repos/\${owner}/\${repoName}/contents/\${streakPath}\`, {
-      method: 'PUT',
-      body: JSON.stringify(streakBody)
-    });
-    console.log("Streak backup updated!");
-
-  } catch (error) {
-    console.error("Automation Error:", error.message);
-    await sendTelegramAlert(\`❌ Daily Commit Automation failed!\\n\\n<b>Error:</b> \${error.message}\`);
-    process.exit(1);
-  }
-}
-
-run();`;
+      const scriptContent = getScriptContent();
 
       const blob = new Blob([scriptContent], { type: 'text/javascript' });
       const url = URL.createObjectURL(blob);
