@@ -58,24 +58,22 @@ async function sendTelegramAlert(message) {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         chat_id: telegramChatId,
-        text: `⚠️ GitHub Commit Bot Alert:\n\n${message}\n\nCheck your GitHub Action logs for details.`,
+        text: message,
         parse_mode: 'HTML'
       })
     });
     if (response.ok) {
-      console.log("Telegram alert sent successfully.");
-    } else {
-      console.error("Failed to send Telegram alert:", await response.text());
+      console.log("Telegram alert sent.");
     }
   } catch (err) {
-    console.error("Error sending Telegram alert:", err.message);
+    console.error("Telegram alert failed:", err.message);
   }
 }
 
 // Main commit execution function
 async function run() {
   try {
-    console.log(`Starting daily commit process for ${repo}...`);
+    console.log(`Starting daily commit process for ${repo}...\n`);
     const today = new Date();
     const dateStr = today.toISOString().split('T')[0];
     const timeStr = today.toTimeString().split(' ')[0];
@@ -107,11 +105,7 @@ async function run() {
     
     if (journalRes.status === 200) {
       journalSha = journalRes.data.sha;
-      // Decode existing content
       journalContent = Buffer.from(journalRes.data.content, 'base64').toString('utf8');
-      console.log(`${journalPath} found. Updating content...`);
-    } else {
-      console.log(`${journalPath} not found. Creating new file...`);
     }
 
     const updatedJournalContent = journalContent + logEntry;
@@ -136,16 +130,12 @@ async function run() {
       method: 'PUT',
       body: JSON.stringify(journalBody)
     });
-    console.log(`Successfully committed to ${journalPath}! SHA: ${commitRes.data.commit.sha}`);
+    console.log(`Successfully committed to ${journalPath}!`);
 
     // 2. Update streak.json backup in the repo
     const streakPath = 'streak.json';
     let streakSha = null;
-    let streakData = {
-      streak: 0,
-      last_commit_date: '',
-      history: []
-    };
+    let streakData = { streak: 0, last_commit_date: '', history: [] };
 
     console.log(`Checking if ${streakPath} exists...`);
     const streakRes = await githubApi(`/repos/${owner}/${repoName}/contents/${streakPath}`);
@@ -153,29 +143,19 @@ async function run() {
     if (streakRes.status === 200) {
       streakSha = streakRes.data.sha;
       const rawStreak = Buffer.from(streakRes.data.content, 'base64').toString('utf8');
-      try {
-        streakData = JSON.parse(rawStreak);
-      } catch (e) {
-        console.warn("Failed to parse existing streak.json, resetting...", e.message);
-      }
+      try { streakData = JSON.parse(rawStreak); } catch (e) {}
     }
 
-    // Update streak logic
     const lastDate = streakData.last_commit_date;
-    if (lastDate === dateStr) {
-      // Already committed today, keep streak the same
-      console.log("A commit was already recorded for today. Streak remains:", streakData.streak);
-    } else {
+    if (lastDate !== dateStr) {
       const yesterday = new Date(today);
       yesterday.setDate(today.getDate() - 1);
       const yesterdayStr = yesterday.toISOString().split('T')[0];
 
       if (lastDate === yesterdayStr) {
         streakData.streak += 1;
-        console.log("Streak extended! New streak:", streakData.streak);
       } else {
         streakData.streak = 1;
-        console.log("Streak reset or started. New streak:", streakData.streak);
       }
       streakData.last_commit_date = dateStr;
     }
@@ -205,10 +185,13 @@ async function run() {
     });
     console.log("Streak backup updated successfully!");
 
+    // Send success Telegram notification if configured
+    await sendTelegramAlert(`🤖 <b>GitHub Commit Bot</b>\n\n✅ <b>Daily Commit Successful!</b>\n\nCompleted daily commits to <b>${repo}</b>.\nStreak: <b>${streakData.streak} days</b> 🔥`);
+
   } catch (error) {
     console.error("Automation Error:", error.message);
     // Send Telegram alert if configured
-    await sendTelegramAlert(`❌ Daily Commit Automation failed!\n\n<b>Error:</b> ${error.message}`);
+    await sendTelegramAlert(`⚠️ <b>GitHub Commit Bot Alert</b>\n\n❌ Daily Commit Automation failed!\n\n<b>Error:</b> ${error.message}\n\nCheck your GitHub Action logs for details.`);
     process.exit(1);
   }
 }
