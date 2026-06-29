@@ -1953,6 +1953,25 @@
           });
         });
 
+        // Smart merge: If local commitHistory has more commits for any day than what GitHub's API currently reports,
+        // it means GitHub is still indexing. We supplement the list to prevent count fluctuation.
+        const fetchedCounts = {};
+        dates.forEach(d => { fetchedCounts[d] = (fetchedCounts[d] || 0) + 1; });
+
+        const localCounts = {};
+        commitHistory.forEach(d => { localCounts[d] = (localCounts[d] || 0) + 1; });
+
+        Object.keys(localCounts).forEach(d => {
+          const localVal = localCounts[d] || 0;
+          const fetchedVal = fetchedCounts[d] || 0;
+          if (localVal > fetchedVal) {
+            const diff = localVal - fetchedVal;
+            for (let i = 0; i < diff; i++) {
+              dates.push(d);
+            }
+          }
+        });
+
         allCommitsHistory = dates;
         log("Successfully synced your official GitHub contribution calendar!", "success");
         renderCalendar();
@@ -1991,6 +2010,24 @@
             fetchedAll = true;
           }
         }
+
+        // Smart merge for REST fallback
+        const fetchedCounts = {};
+        dates.forEach(d => { fetchedCounts[d] = (fetchedCounts[d] || 0) + 1; });
+
+        const localCounts = {};
+        commitHistory.forEach(d => { localCounts[d] = (localCounts[d] || 0) + 1; });
+
+        Object.keys(localCounts).forEach(d => {
+          const localVal = localCounts[d] || 0;
+          const fetchedVal = fetchedCounts[d] || 0;
+          if (localVal > fetchedVal) {
+            const diff = localVal - fetchedVal;
+            for (let i = 0; i < diff; i++) {
+              dates.push(d);
+            }
+          }
+        });
 
         allCommitsHistory = dates;
         log(`Fetched ${allCommitsHistory.length} commit(s) via REST.`, "success");
